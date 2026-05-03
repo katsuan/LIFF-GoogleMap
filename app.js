@@ -101,24 +101,27 @@ async function shareMap() {
             throw new Error('この環境では送信機能を利用できません。LINEアプリ内で開いてください。');
         }
 
-        const result = await liff.shareTargetPicker([
-            {
-                type: 'flex',
-                altText: `📍 ${title}`,
-                contents: createShareFlex_(mapUrl, title, comment, selectedBadges)
-            }
-        ]);
+        const result = await liff.shareTargetPicker(
+            [
+                {
+                    type: 'flex',
+                    altText: `📍 ${title}`,
+                    contents: createShareFlex_(mapUrl, title, comment, selectedBadges)
+                }
+            ]
+        );
 
-        if (result) {
+        if (result?.status === 'success') {
             setSending_(false);
-            doneBox.textContent = liff.isInClient()
-                ? '送信しました。必要に応じてこの画面を閉じてください。'
-                : '送信しました。';
+            doneBox.textContent = '送信しました。';
             doneBox.style.display = 'block';
         } else {
             setSending_(false);
+            doneBox.textContent = '送信先の画面を閉じました。送信されていない場合は、LINEアプリを最新版に更新して再度試してください。';
+            doneBox.style.display = 'block';
         }
     } catch (error) {
+        console.error('shareMap failed', error);
         showError_(error.message || '送信に失敗しました。');
         setSending_(false);
     }
@@ -219,7 +222,6 @@ function createShareFlex_(mapUrl, title, comment, badges) {
             layout: 'horizontal',
             spacing: 'xs',
             flex: 0,
-            wrap: true,
             contents: badges.slice(0, 5).map(createBadgeBox_)
         });
     }
