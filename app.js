@@ -288,7 +288,11 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
             url: photoUrl,
             size: 'full',
             aspectRatio: '20:13',
-            aspectMode: 'cover'
+            aspectMode: 'cover',
+            action: {
+                type: 'uri',
+                uri: mapUrl
+            }
         } : undefined,
         body: {
             type: 'box',
