@@ -1,0 +1,2 @@
+# LIFF-GoogleMap
+GoogleMap関連投稿に対してLINEのPostアクションを発動させる
