@@ -67,10 +67,13 @@ function resolveMapInfo_(url) {
   }
 
   const finalUrl = expandUrl_(url);
-  const page = fetchMapPage_(finalUrl);
+  const page = fetchMapPage_(url, finalUrl);
   const urlInfo = extractMapInfoFromUrl_(finalUrl);
-  const title = normalizeMapTitle_(page.title) || urlInfo.title || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
-  const address = cleanMapAddress_(page.address) || urlInfo.address;
+  const rawTitle = normalizeMapTitle_(page.title) || urlInfo.title || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
+  const rawAddress = cleanMapAddress_(page.address) || urlInfo.address;
+  const normalized = normalizeMapInfoWithGeocoder_(rawTitle, rawAddress);
+  const title = normalized.title || rawTitle || 'Google Maps';
+  const address = normalized.address || rawAddress;
 
   return {
     ok: true,
@@ -219,15 +222,15 @@ function expandUrl_(url) {
   return currentUrl;
 }
 
-function fetchMapPage_(url) {
+function fetchMapPage_(originalUrl, finalUrl) {
   try {
-    const lookupUrls = buildMapLookupUrls_(url);
+    const lookupUrls = buildMapLookupUrls_(originalUrl, finalUrl);
 
     for (let i = 0; i < lookupUrls.length; i += 1) {
       const html = fetchHtml_(lookupUrls[i]);
       if (!html) continue;
 
-      const title = extractMetaContent_(html, 'property', 'og:title') || extractTitleTag_(html);
+      const title = extractTitleFromHtml_(html);
       const address = extractAddressFromHtml_(html);
 
       if (title || address) {
@@ -269,6 +272,93 @@ function normalizeMapTitle_(title) {
   }
 
   return cleaned;
+}
+
+function normalizeMapInfoWithGeocoder_(title, address) {
+  const geocodeQueries = buildGeocodeQueries_(title, address);
+  if (geocodeQueries.length === 0) {
+    return { title: '', address: '' };
+  }
+
+  try {
+    const geocoder = Maps.newGeocoder()
+      .setLanguage('ja')
+      .setRegion('jp');
+
+    for (let i = 0; i < geocodeQueries.length; i += 1) {
+      const response = geocoder.geocode(geocodeQueries[i]);
+      const results = (response && response.results) || [];
+      if (results.length === 0) continue;
+
+      const result = results[0];
+      const geocodedTitle = normalizeMapTitle_(extractGeocoderTitle_(result));
+      const geocodedAddress = cleanMapAddress_(result.formatted_address);
+
+      return {
+        title: shouldUseGeocodedTitle_(title, geocodedTitle) ? geocodedTitle : '',
+        address: shouldUseGeocodedAddress_(address, geocodedAddress) ? geocodedAddress : ''
+      };
+    }
+  } catch (error) {
+  }
+
+  return { title: '', address: '' };
+}
+
+function buildGeocodeQueries_(title, address) {
+  const values = [];
+  const safeTitle = String(title || '').trim();
+  const safeAddress = String(address || '').trim();
+
+  if (safeTitle && safeAddress) {
+    values.push(safeTitle + ' ' + safeAddress);
+  }
+
+  if (safeAddress) {
+    values.push(safeAddress);
+  }
+
+  if (safeTitle) {
+    values.push(safeTitle);
+  }
+
+  return dedupeStrings_(values);
+}
+
+function extractGeocoderTitle_(result) {
+  if (!result) return '';
+
+  const components = result.address_components || [];
+  const preferredTypes = ['point_of_interest', 'establishment', 'premise', 'subpremise'];
+
+  for (let i = 0; i < preferredTypes.length; i += 1) {
+    for (let j = 0; j < components.length; j += 1) {
+      const types = components[j].types || [];
+      if (types.indexOf(preferredTypes[i]) >= 0) {
+        return components[j].long_name || '';
+      }
+    }
+  }
+
+  return '';
+}
+
+function shouldUseGeocodedTitle_(currentTitle, geocodedTitle) {
+  if (!geocodedTitle) return false;
+  if (!currentTitle) return true;
+  if (!hasJapaneseText_(currentTitle) && hasJapaneseText_(geocodedTitle)) return true;
+  return false;
+}
+
+function shouldUseGeocodedAddress_(currentAddress, geocodedAddress) {
+  if (!geocodedAddress) return false;
+  if (!currentAddress) return true;
+  if (!hasJapaneseText_(currentAddress) && hasJapaneseText_(geocodedAddress)) return true;
+  return false;
+}
+
+function hasJapaneseText_(text) {
+  return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(String(text || ''));
 }
 
 function cleanMapAddress_(address) {
@@ -357,10 +447,12 @@ function localizeMapUrl_(url) {
   }
 }
 
-function buildMapLookupUrls_(url) {
+function buildMapLookupUrls_(originalUrl, finalUrl) {
   const urls = [];
-  const ftid = extractQueryParam_(url, 'ftid');
-  const cid = extractQueryParam_(url, 'cid');
+  const ftid = extractQueryParam_(finalUrl, 'ftid');
+  const cid = extractQueryParam_(finalUrl, 'cid');
+
+  urls.push(localizeMapUrl_(originalUrl));
 
   if (ftid) {
     urls.push('https://www.google.com/maps?ftid=' + encodeURIComponent(ftid) + '&hl=ja');
@@ -370,7 +462,7 @@ function buildMapLookupUrls_(url) {
     urls.push('https://www.google.com/maps?cid=' + encodeURIComponent(cid) + '&hl=ja');
   }
 
-  urls.push(localizeMapUrl_(url));
+  urls.push(localizeMapUrl_(finalUrl));
 
   return dedupeStrings_(urls.filter(Boolean));
 }
@@ -413,6 +505,23 @@ function dedupeStrings_(values) {
   });
 
   return result;
+}
+
+function extractTitleFromHtml_(html) {
+  const candidates = [
+    extractMetaContent_(html, 'property', 'og:title'),
+    extractMetaContent_(html, 'name', 'title'),
+    extractMetaContent_(html, 'itemprop', 'name'),
+    extractTitleFromJsonLd_(html),
+    extractTitleTag_(html)
+  ].filter(Boolean);
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const normalized = normalizeMapTitle_(candidates[i]);
+    if (normalized) return normalized;
+  }
+
+  return '';
 }
 
 function extractMetaContent_(html, attrName, attrValue) {
@@ -472,6 +581,24 @@ function extractAddressFromHtml_(html) {
   return '';
 }
 
+function extractTitleFromJsonLd_(html) {
+  const ldJsonMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/ig) || [];
+
+  for (let i = 0; i < ldJsonMatches.length; i += 1) {
+    const match = ldJsonMatches[i].match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+    if (!match) continue;
+
+    try {
+      const parsed = JSON.parse(match[1]);
+      const name = extractNameFromJsonLd_(parsed);
+      if (name) return name;
+    } catch (error) {
+    }
+  }
+
+  return '';
+}
+
 function extractAddressFromJsonLd_(value) {
   if (!value) return '';
 
@@ -504,6 +631,32 @@ function extractAddressFromJsonLd_(value) {
     const keys = Object.keys(value);
     for (let i = 0; i < keys.length; i += 1) {
       const nested = extractAddressFromJsonLd_(value[keys[i]]);
+      if (nested) return nested;
+    }
+  }
+
+  return '';
+}
+
+function extractNameFromJsonLd_(value) {
+  if (!value) return '';
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const nested = extractNameFromJsonLd_(value[i]);
+      if (nested) return nested;
+    }
+    return '';
+  }
+
+  if (typeof value === 'object') {
+    if (typeof value.name === 'string') {
+      return value.name;
+    }
+
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const nested = extractNameFromJsonLd_(value[keys[i]]);
       if (nested) return nested;
     }
   }
