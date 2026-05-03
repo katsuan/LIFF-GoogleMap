@@ -17,10 +17,12 @@ const selectedBadges = [];
 const params = new URLSearchParams(location.search);
 const initialMapUrl = params.get('mapUrl') || '';
 const initialTitle = params.get('title') || '';
+const initialAddress = params.get('address') || '';
 
 const elMapUrl = document.getElementById('mapUrl');
 const elTitle = document.getElementById('title');
 const elComment = document.getElementById('comment');
+const elAddressPreview = document.getElementById('addressPreview');
 const badgeList = document.getElementById('badgeList');
 const customBadgeInput = document.getElementById('customBadge');
 
@@ -29,8 +31,20 @@ const resolveButton = document.getElementById('resolveButton');
 const errorBox = document.getElementById('error');
 const doneBox = document.getElementById('done');
 
+let resolvedAddress = initialAddress;
+let lastResolvedUrl = initialMapUrl;
+
 elMapUrl.value = initialMapUrl;
 elTitle.value = initialTitle;
+setAddressPreview_(initialAddress);
+
+elMapUrl.addEventListener('input', () => {
+    const currentUrl = elMapUrl.value.trim();
+    if (!currentUrl || currentUrl !== lastResolvedUrl) {
+        resolvedAddress = '';
+        setAddressPreview_('');
+    }
+});
 
 async function main() {
     try {
@@ -43,7 +57,7 @@ async function main() {
             return;
         }
 
-        if (initialMapUrl && !initialTitle) {
+        if (initialMapUrl && (!initialTitle || !initialAddress)) {
             await resolveMapInfo();
         }
     } catch (error) {
@@ -71,8 +85,11 @@ async function resolveMapInfo() {
             throw new Error(data.message || '地図情報を取得できませんでした。');
         }
 
-        elMapUrl.value = data.url || url;
+        lastResolvedUrl = data.url || url;
+        resolvedAddress = data.address || '';
+        elMapUrl.value = lastResolvedUrl;
         elTitle.value = data.title || 'Google Maps';
+        setAddressPreview_(resolvedAddress);
     } catch (error) {
         showError_(error.message || '地図情報の取得に失敗しました。');
     } finally {
@@ -93,6 +110,7 @@ async function shareMap() {
         const mapUrl = elMapUrl.value.trim();
         const title = elTitle.value.trim() || 'Google Maps';
         const comment = elComment.value.trim();
+        const address = resolvedAddress.trim();
 
         validateMapUrl_(mapUrl);
         setSending_(true);
@@ -106,7 +124,7 @@ async function shareMap() {
                 {
                     type: 'flex',
                     altText: `📍 ${title}`,
-                    contents: createShareFlex_(mapUrl, title, comment, selectedBadges)
+                    contents: createShareFlex_(mapUrl, title, address, comment, selectedBadges)
                 }
             ]
         );
@@ -199,22 +217,26 @@ function addCustomBadge() {
     renderBadges_();
 }
 
-function createShareFlex_(mapUrl, title, comment, badges) {
+function createShareFlex_(mapUrl, title, address, comment, badges) {
     const bodyContents = [
         {
             type: 'text',
-            text: '📍 地図共有',
+            text: `📍 ${title}`,
             weight: 'bold',
-            size: 'lg'
-        },
-        {
-            type: 'text',
-            text: title,
-            weight: 'bold',
-            size: 'md',
+            size: 'lg',
             wrap: true
         }
     ];
+
+    if (address) {
+        bodyContents.push({
+            type: 'text',
+            text: address,
+            size: 'sm',
+            color: '#7c8ea1',
+            wrap: true
+        });
+    }
 
     if (badges && badges.length > 0) {
         bodyContents.push({
@@ -290,6 +312,7 @@ function createBadgeBox_(label) {
         backgroundColor: '#eaf5ff',
         cornerRadius: 'xxl',
         paddingAll: 'sm',
+        flex: 0,
         contents: [
             {
                 type: 'text',
@@ -326,6 +349,11 @@ function setResolving_(isResolving) {
 function setSending_(isSending) {
     sendButton.disabled = isSending;
     sendButton.textContent = isSending ? '送信中...' : '別トークへ送信';
+}
+
+function setAddressPreview_(address) {
+    elAddressPreview.textContent = address || '';
+    elAddressPreview.style.display = address ? 'block' : 'none';
 }
 
 function showError_(message) {

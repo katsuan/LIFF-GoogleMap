@@ -59,6 +59,7 @@ function resolveMapInfo_(url) {
     return {
       ok: false,
       title: '',
+      address: '',
       url,
       originalUrl: url,
       message: 'Google Maps URLではありません。'
@@ -66,12 +67,14 @@ function resolveMapInfo_(url) {
   }
 
   const finalUrl = expandUrl_(url);
-  const rawTitle = fetchPageTitle_(finalUrl);
-  const title = cleanMapTitle_(rawTitle) || 'Google Maps';
+  const page = fetchMapPage_(finalUrl);
+  const title = cleanMapTitle_(page.title) || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
+  const address = cleanMapAddress_(page.address);
 
   return {
     ok: true,
     title,
+    address,
     url: finalUrl,
     originalUrl: url,
     message: ''
@@ -80,11 +83,59 @@ function resolveMapInfo_(url) {
 
 function createMapFlex_(info) {
   const title = info.title || 'Google Maps';
+  const address = info.address || '';
   const mapUrl = info.url || info.originalUrl;
 
   const liffUrl = APP.LIFF_PAGE_URL
     + '?mapUrl=' + encodeURIComponent(mapUrl)
-    + '&title=' + encodeURIComponent(title);
+    + '&title=' + encodeURIComponent(title)
+    + '&address=' + encodeURIComponent(address);
+
+  const bodyContents = [
+    {
+      type: 'text',
+      text: `📍 ${title}`,
+      weight: 'bold',
+      size: 'lg',
+      wrap: true
+    }
+  ];
+
+  if (address) {
+    bodyContents.push({
+      type: 'text',
+      text: address,
+      size: 'sm',
+      color: '#7C8EA1',
+      wrap: true
+    });
+  }
+
+  bodyContents.push(
+    {
+      type: 'text',
+      text: 'コメントを付けて、別のトークへ共有できます。',
+      size: 'sm',
+      color: '#666666',
+      wrap: true
+    },
+    {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: '#F5F7FA',
+      cornerRadius: 'md',
+      paddingAll: 'md',
+      contents: [
+        {
+          type: 'text',
+          text: mapUrl,
+          size: 'xs',
+          color: '#555555',
+          wrap: true
+        }
+      ]
+    }
+  );
 
   return {
     type: 'flex',
@@ -96,44 +147,7 @@ function createMapFlex_(info) {
         type: 'box',
         layout: 'vertical',
         spacing: 'md',
-        contents: [
-          {
-            type: 'text',
-            text: '📍 地図共有',
-            weight: 'bold',
-            size: 'lg'
-          },
-          {
-            type: 'text',
-            text: title,
-            weight: 'bold',
-            size: 'md',
-            wrap: true
-          },
-          {
-            type: 'text',
-            text: 'コメントを付けて、別のトークへ共有できます。',
-            size: 'sm',
-            color: '#666666',
-            wrap: true
-          },
-          {
-            type: 'box',
-            layout: 'vertical',
-            backgroundColor: '#F5F7FA',
-            cornerRadius: 'md',
-            paddingAll: 'md',
-            contents: [
-              {
-                type: 'text',
-                text: mapUrl,
-                size: 'xs',
-                color: '#555555',
-                wrap: true
-              }
-            ]
-          }
-        ]
+        contents: bodyContents
       },
       footer: {
         type: 'box',
@@ -190,7 +204,7 @@ function expandUrl_(url) {
   }
 }
 
-function fetchPageTitle_(url) {
+function fetchMapPage_(url) {
   try {
     const res = UrlFetchApp.fetch(url, {
       method: 'get',
@@ -199,17 +213,16 @@ function fetchPageTitle_(url) {
     });
 
     const html = res.getContentText('UTF-8');
-
-    const og = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
-    if (og) return decodeHtml_(og[1]);
-
-    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    if (title) return decodeHtml_(title[1]);
-
-    return '';
+    return {
+      title: extractMetaContent_(html, 'property', 'og:title') || extractTitleTag_(html),
+      address: extractAddressFromHtml_(html)
+    };
 
   } catch (error) {
-    return '';
+    return {
+      title: '',
+      address: ''
+    };
   }
 }
 
@@ -218,6 +231,141 @@ function cleanMapTitle_(title) {
     .replace(/\s*-\s*Google\s*マップ\s*$/i, '')
     .replace(/\s*-\s*Google\s*Maps\s*$/i, '')
     .trim();
+}
+
+function cleanMapAddress_(address) {
+  const text = decodeHtml_(String(address || ''))
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) return '';
+
+  const segments = text
+    .split(/\s*[|・·]\s*/)
+    .map(function(part) { return part.trim(); })
+    .filter(Boolean);
+
+  for (let i = 0; i < segments.length; i += 1) {
+    if (looksLikeAddress_(segments[i])) {
+      return segments[i];
+    }
+  }
+
+  return looksLikeAddress_(text) ? text : '';
+}
+
+function looksLikeAddress_(text) {
+  return /〒\s*\d{3}-?\d{4}/.test(text) ||
+    /(東京都|北海道|(?:京都|大阪)府|.{2,3}県).+/.test(text) ||
+    /(市|区|町|村|丁目|番地|号)/.test(text) ||
+    /\d+\s+[^,]+,\s*[^,]+/.test(text);
+}
+
+function extractTitleFromMapUrl_(url) {
+  try {
+    const decoded = decodeURIComponent(url);
+    const match = decoded.match(/\/maps\/place\/([^/]+)/);
+    return match ? match[1].replace(/\+/g, ' ').trim() : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function extractMetaContent_(html, attrName, attrValue) {
+  const escapedValue = attrValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(
+    '<meta[^>]+'
+    + attrName
+    + '=["\']'
+    + escapedValue
+    + '["\'][^>]+content=["\']([^"\']+)["\']',
+    'i'
+  );
+  const match = html.match(pattern);
+  return match ? decodeHtml_(match[1]) : '';
+}
+
+function extractTitleTag_(html) {
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return title ? decodeHtml_(title[1]) : '';
+}
+
+function extractAddressFromHtml_(html) {
+  const candidates = [
+    extractMetaContent_(html, 'property', 'og:description'),
+    extractMetaContent_(html, 'name', 'description')
+  ].filter(Boolean);
+
+  const ldJsonMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/ig) || [];
+
+  ldJsonMatches.forEach(function(scriptTag) {
+    const match = scriptTag.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+    if (!match) return;
+
+    try {
+      const parsed = JSON.parse(match[1]);
+      const address = extractAddressFromJsonLd_(parsed);
+      if (address) candidates.push(address);
+    } catch (error) {
+    }
+  });
+
+  const regexCandidates = [
+    /"address"\s*:\s*"([^"]+)"/i,
+    /"streetAddress"\s*:\s*"([^"]+)"/i
+  ];
+
+  regexCandidates.forEach(function(pattern) {
+    const match = html.match(pattern);
+    if (match) candidates.push(match[1]);
+  });
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const cleaned = cleanMapAddress_(candidates[i]);
+    if (cleaned) return cleaned;
+  }
+
+  return '';
+}
+
+function extractAddressFromJsonLd_(value) {
+  if (!value) return '';
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const nested = extractAddressFromJsonLd_(value[i]);
+      if (nested) return nested;
+    }
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'object') {
+    if (value.address) {
+      if (typeof value.address === 'string') return value.address;
+
+      const parts = [
+        value.address.postalCode,
+        value.address.addressRegion,
+        value.address.addressLocality,
+        value.address.streetAddress
+      ].filter(Boolean);
+
+      if (parts.length > 0) return parts.join(' ');
+    }
+
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i += 1) {
+      const nested = extractAddressFromJsonLd_(value[keys[i]]);
+      if (nested) return nested;
+    }
+  }
+
+  return '';
 }
 
 function decodeHtml_(text) {

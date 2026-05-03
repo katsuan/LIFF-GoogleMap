@@ -127,15 +127,26 @@ textarea {
     line-height: 1.6;
 }
 
+.resolved-address {
+    display: none;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #7c8ea1;
+    line-height: 1.6;
+}
+
 .badge-list {
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
     gap: 8px;
     margin-bottom: 10px;
 }
 
 .badge {
     padding: 8px 10px;
+    width: fit-content;
     border-radius: 999px;
     border: 1px solid #d2deec;
     background: #f4f8fc;
