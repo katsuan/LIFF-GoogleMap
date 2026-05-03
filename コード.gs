@@ -221,20 +221,23 @@ function expandUrl_(url) {
 
 function fetchMapPage_(url) {
   try {
-    const localizedUrl = localizeMapUrl_(url);
-    const res = UrlFetchApp.fetch(localizedUrl, {
-      method: 'get',
-      followRedirects: true,
-      muteHttpExceptions: true,
-      headers: {
-        'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.7,en;q=0.6'
-      }
-    });
+    const lookupUrls = buildMapLookupUrls_(url);
 
-    const html = res.getContentText('UTF-8');
+    for (let i = 0; i < lookupUrls.length; i += 1) {
+      const html = fetchHtml_(lookupUrls[i]);
+      if (!html) continue;
+
+      const title = extractMetaContent_(html, 'property', 'og:title') || extractTitleTag_(html);
+      const address = extractAddressFromHtml_(html);
+
+      if (title || address) {
+        return { title: title, address: address };
+      }
+    }
+
     return {
-      title: extractMetaContent_(html, 'property', 'og:title') || extractTitleTag_(html),
-      address: extractAddressFromHtml_(html)
+      title: '',
+      address: ''
     };
 
   } catch (error) {
@@ -352,6 +355,64 @@ function localizeMapUrl_(url) {
   } catch (error) {
     return url;
   }
+}
+
+function buildMapLookupUrls_(url) {
+  const urls = [];
+  const ftid = extractQueryParam_(url, 'ftid');
+  const cid = extractQueryParam_(url, 'cid');
+
+  if (ftid) {
+    urls.push('https://www.google.com/maps?ftid=' + encodeURIComponent(ftid) + '&hl=ja');
+  }
+
+  if (cid) {
+    urls.push('https://www.google.com/maps?cid=' + encodeURIComponent(cid) + '&hl=ja');
+  }
+
+  urls.push(localizeMapUrl_(url));
+
+  return dedupeStrings_(urls.filter(Boolean));
+}
+
+function fetchHtml_(url) {
+  try {
+    const res = UrlFetchApp.fetch(url, {
+      method: 'get',
+      followRedirects: true,
+      muteHttpExceptions: true,
+      headers: {
+        'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.7,en;q=0.6'
+      }
+    });
+
+    return res.getContentText('UTF-8');
+  } catch (error) {
+    return '';
+  }
+}
+
+function extractQueryParam_(url, name) {
+  try {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = decodeURIComponent(url).match(new RegExp('[?&]' + escapedName + '=([^&]+)'));
+    return match ? match[1] : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function dedupeStrings_(values) {
+  const seen = {};
+  const result = [];
+
+  values.forEach(function(value) {
+    if (!value || seen[value]) return;
+    seen[value] = true;
+    result.push(value);
+  });
+
+  return result;
 }
 
 function extractMetaContent_(html, attrName, attrValue) {
