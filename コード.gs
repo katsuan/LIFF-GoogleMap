@@ -6,7 +6,7 @@ const LINE = {
 };
 
 const APP = {
-  LIFF_PAGE_URL: 'https://katsuan.github.io/LIFF-GoogleMap/',
+  LIFF_PAGE_URL: 'https://liff.line.me/2009965829-2KRcrwks',
 };
 
 /**
