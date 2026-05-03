@@ -97,6 +97,10 @@ async function shareMap() {
         validateMapUrl_(mapUrl);
         setSending_(true);
 
+        if (!liff.isApiAvailable('shareTargetPicker')) {
+            throw new Error('この環境では送信機能を利用できません。LINEアプリ内で開いてください。');
+        }
+
         const result = await liff.shareTargetPicker([
             {
                 type: 'flex',
@@ -106,8 +110,11 @@ async function shareMap() {
         ]);
 
         if (result) {
+            setSending_(false);
+            doneBox.textContent = liff.isInClient()
+                ? '送信しました。必要に応じてこの画面を閉じてください。'
+                : '送信しました。';
             doneBox.style.display = 'block';
-            setTimeout(() => liff.closeWindow(), 700);
         } else {
             setSending_(false);
         }
@@ -221,7 +228,7 @@ function createShareFlex_(mapUrl, title, comment, badges) {
         bodyContents.push({
             type: 'box',
             layout: 'vertical',
-            backgroundColor: '#f5f7fa',
+            backgroundColor: '#f1f7fd',
             cornerRadius: 'md',
             paddingAll: 'md',
             contents: [
@@ -229,14 +236,14 @@ function createShareFlex_(mapUrl, title, comment, badges) {
                     type: 'text',
                     text: 'コメント',
                     size: 'xs',
-                    color: '#888888',
+                    color: '#6f8497',
                     weight: 'bold'
                 },
                 {
                     type: 'text',
                     text: comment,
                     size: 'sm',
-                    color: '#333333',
+                    color: '#304255',
                     wrap: true,
                     margin: 'xs'
                 }
@@ -250,6 +257,7 @@ function createShareFlex_(mapUrl, title, comment, badges) {
         body: {
             type: 'box',
             layout: 'vertical',
+            backgroundColor: '#ffffff',
             spacing: 'md',
             contents: bodyContents
         },
@@ -261,6 +269,7 @@ function createShareFlex_(mapUrl, title, comment, badges) {
                 {
                     type: 'button',
                     style: 'primary',
+                    color: '#2379c7',
                     action: {
                         type: 'uri',
                         label: '地図を開く',
@@ -276,7 +285,7 @@ function createBadgeBox_(label) {
     return {
         type: 'box',
         layout: 'vertical',
-        backgroundColor: '#e9fff1',
+        backgroundColor: '#eaf5ff',
         cornerRadius: 'xxl',
         paddingAll: 'sm',
         contents: [
@@ -284,7 +293,7 @@ function createBadgeBox_(label) {
                 type: 'text',
                 text: label,
                 size: 'xs',
-                color: '#05883a',
+                color: '#1f6db2',
                 weight: 'bold',
                 flex: 0
             }
