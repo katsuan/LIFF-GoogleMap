@@ -1,5 +1,5 @@
-const LIFF_ID = 'YOUR_LIFF_ID';
-const GAS_API_URL = 'YOUR_GAS_WEB_APP_URL';
+const LIFF_ID = '2009965829-2KRcrwks';
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyWJvdBist0kksEkE2DTvrFdZCrQEuy608y__R9NOLKExTHGTn4oKPYUR3WYdRjbVXJ7w/exec';
 
 const DEFAULT_BADGES = [
     'おすすめ',
