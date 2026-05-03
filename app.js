@@ -123,7 +123,7 @@ async function shareMap() {
             [
                 {
                     type: 'flex',
-                    altText: `📍 ${title}`,
+                    altText: `マップ情報「📍 ${title}」の共有です！`,
                     contents: createShareFlex_(mapUrl, title, address, comment, selectedBadges)
                 }
             ]
