@@ -68,8 +68,9 @@ function resolveMapInfo_(url) {
 
   const finalUrl = expandUrl_(url);
   const page = fetchMapPage_(finalUrl);
-  const title = cleanMapTitle_(page.title) || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
-  const address = cleanMapAddress_(page.address);
+  const urlInfo = extractMapInfoFromUrl_(finalUrl);
+  const title = cleanMapTitle_(page.title) || urlInfo.title || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
+  const address = cleanMapAddress_(page.address) || urlInfo.address;
 
   return {
     ok: true,
@@ -84,7 +85,7 @@ function resolveMapInfo_(url) {
 function createMapFlex_(info) {
   const title = info.title || 'Google Maps';
   const address = info.address || '';
-  const mapUrl = info.url || info.originalUrl;
+  const mapUrl = info.originalUrl || info.url;
 
   const liffUrl = APP.LIFF_PAGE_URL
     + '?mapUrl=' + encodeURIComponent(mapUrl)
@@ -283,6 +284,37 @@ function extractTitleFromMapUrl_(url) {
     return match ? match[1].replace(/\+/g, ' ').trim() : '';
   } catch (error) {
     return '';
+  }
+}
+
+function extractMapInfoFromUrl_(url) {
+  try {
+    const decoded = decodeURIComponent(url);
+    const qMatch = decoded.match(/[?&]q=([^&]+)/);
+    if (!qMatch) {
+      return { title: '', address: '' };
+    }
+
+    const qValue = qMatch[1].replace(/\+/g, ' ').trim();
+    if (!qValue) {
+      return { title: '', address: '' };
+    }
+
+    const parts = qValue
+      .split(/\s*,\s*/)
+      .map(function(part) { return part.trim(); })
+      .filter(Boolean);
+
+    if (parts.length === 0) {
+      return { title: '', address: '' };
+    }
+
+    return {
+      title: parts[0],
+      address: cleanMapAddress_(parts.slice(1).join(', '))
+    };
+  } catch (error) {
+    return { title: '', address: '' };
   }
 }
 

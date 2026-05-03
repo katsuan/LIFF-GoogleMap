@@ -85,9 +85,9 @@ async function resolveMapInfo() {
             throw new Error(data.message || '地図情報を取得できませんでした。');
         }
 
-        lastResolvedUrl = data.url || url;
+        lastResolvedUrl = url;
         resolvedAddress = data.address || '';
-        elMapUrl.value = lastResolvedUrl;
+        elMapUrl.value = url;
         elTitle.value = data.title || 'Google Maps';
         setAddressPreview_(resolvedAddress);
     } catch (error) {
