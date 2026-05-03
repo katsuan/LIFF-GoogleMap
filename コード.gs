@@ -5,6 +5,8 @@ const LINE = {
   REPLY_URL: 'https://api.line.me/v2/bot/message/reply',
 };
 
+const GOOGLE_MAPS_API_KEY = PROPS.getProperty('GOOGLE_MAPS_API_KEY');
+
 const APP = {
   LIFF_PAGE_URL: 'https://liff.line.me/2009965829-2KRcrwks',
 };
@@ -71,9 +73,10 @@ function resolveMapInfo_(url) {
   const urlInfo = extractMapInfoFromUrl_(finalUrl);
   const rawTitle = normalizeMapTitle_(page.title) || urlInfo.title || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
   const rawAddress = cleanMapAddress_(page.address) || urlInfo.address;
-  const normalized = normalizeMapInfoWithGeocoder_(rawTitle, rawAddress);
-  const title = normalized.title || rawTitle || 'Google Maps';
-  const address = normalized.address || rawAddress;
+  const placesInfo = resolveWithPlacesApi_(rawTitle, rawAddress);
+  const geocodedInfo = normalizeMapInfoWithGeocoder_(rawTitle, rawAddress);
+  const title = placesInfo.title || geocodedInfo.title || rawTitle || 'Google Maps';
+  const address = placesInfo.address || geocodedInfo.address || rawAddress;
 
   return {
     ok: true,
@@ -303,6 +306,63 @@ function normalizeMapInfoWithGeocoder_(title, address) {
   }
 
   return { title: '', address: '' };
+}
+
+function resolveWithPlacesApi_(title, address) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    return { title: '', address: '' };
+  }
+
+  const queries = buildGeocodeQueries_(title, address);
+  if (queries.length === 0) {
+    return { title: '', address: '' };
+  }
+
+  for (let i = 0; i < queries.length; i += 1) {
+    const result = searchPlaceText_(queries[i]);
+    if (result.title || result.address) {
+      return result;
+    }
+  }
+
+  return { title: '', address: '' };
+}
+
+function searchPlaceText_(textQuery) {
+  try {
+    const res = UrlFetchApp.fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress'
+      },
+      payload: JSON.stringify({
+        textQuery: textQuery,
+        languageCode: 'ja',
+        regionCode: 'JP'
+      }),
+      muteHttpExceptions: true
+    });
+
+    if (res.getResponseCode() >= 300) {
+      return { title: '', address: '' };
+    }
+
+    const payload = JSON.parse(res.getContentText() || '{}');
+    const places = payload.places || [];
+    if (places.length === 0) {
+      return { title: '', address: '' };
+    }
+
+    const place = places[0];
+    return {
+      title: normalizeMapTitle_(place.displayName && place.displayName.text),
+      address: cleanMapAddress_(place.formattedAddress)
+    };
+  } catch (error) {
+    return { title: '', address: '' };
+  }
 }
 
 function buildGeocodeQueries_(title, address) {
