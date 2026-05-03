@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地図を共有</title>
+
+    <link rel="stylesheet" href="./style.css">
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script defer src="./app.js"></script>
+</head>
+
+<body>
+    <main class="app">
+        <h1>📍 地図を共有</h1>
+        <p class="lead">Google Mapsの情報を整えて、コメント付きで別トークへ共有します。</p>
+
+        <div id="error" class="error"></div>
+        <div id="done" class="done">送信しました。</div>
+
+        <div class="label">Google Maps URL</div>
+        <input id="mapUrl" type="url" placeholder="https://maps.app.goo.gl/..." />
+
+        <button id="resolveButton" class="button button-secondary" onclick="resolveMapInfo()">
+            地図情報を再取得
+        </button>
+
+        <div class="label">場所名</div>
+        <input id="title" type="text" placeholder="場所名を入力" />
+
+        <button id="openButton" class="button button-secondary" onclick="openMap()">
+            地図を開いて確認
+        </button>
+
+        <div class="label">バッジ</div>
+        <div id="badgeList" class="badge-list"></div>
+
+        <div class="badge-add">
+            <input id="customBadge" type="text" placeholder="例：駅近 / 子連れOK / 雰囲気◎" maxlength="12">
+            <button type="button" onclick="addCustomBadge()" class="badge-add-button">追加</button>
+        </div>
+
+        <div class="note">バッジは最大5つまで追加できます。</div>
+
+        <div class="label">コメント</div>
+        <textarea id="comment" placeholder="例：ここ行ってみたい！&#10;例：集合場所はここで！"></textarea>
+
+        <button id="sendButton" class="button button-primary" onclick="shareMap()">
+            別トークへ送信
+        </button>
+
+        <div class="note">
+            URLや場所名は送信前に変更できます。場所名がうまく取れない場合は手動で編集してください。
+        </div>
+    </main>
+</body>
+
+</html>
