@@ -69,7 +69,7 @@ function resolveMapInfo_(url) {
   const finalUrl = expandUrl_(url);
   const page = fetchMapPage_(finalUrl);
   const urlInfo = extractMapInfoFromUrl_(finalUrl);
-  const title = cleanMapTitle_(page.title) || urlInfo.title || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
+  const title = normalizeMapTitle_(page.title) || urlInfo.title || extractTitleFromMapUrl_(finalUrl) || 'Google Maps';
   const address = cleanMapAddress_(page.address) || urlInfo.address;
 
   return {
@@ -221,10 +221,14 @@ function expandUrl_(url) {
 
 function fetchMapPage_(url) {
   try {
-    const res = UrlFetchApp.fetch(url, {
+    const localizedUrl = localizeMapUrl_(url);
+    const res = UrlFetchApp.fetch(localizedUrl, {
       method: 'get',
       followRedirects: true,
       muteHttpExceptions: true,
+      headers: {
+        'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.7,en;q=0.6'
+      }
     });
 
     const html = res.getContentText('UTF-8');
@@ -246,6 +250,22 @@ function cleanMapTitle_(title) {
     .replace(/\s*-\s*Google\s*マップ\s*$/i, '')
     .replace(/\s*-\s*Google\s*Maps\s*$/i, '')
     .trim();
+}
+
+function normalizeMapTitle_(title) {
+  const cleaned = cleanMapTitle_(title);
+  if (!cleaned) return '';
+
+  const normalized = cleaned.toLowerCase();
+  if (normalized === 'google maps' || normalized === 'google map') {
+    return '';
+  }
+
+  if (cleaned === 'Google マップ') {
+    return '';
+  }
+
+  return cleaned;
 }
 
 function cleanMapAddress_(address) {
@@ -315,6 +335,22 @@ function extractMapInfoFromUrl_(url) {
     };
   } catch (error) {
     return { title: '', address: '' };
+  }
+}
+
+function localizeMapUrl_(url) {
+  try {
+    if (!/^https?:\/\//i.test(url)) {
+      return url;
+    }
+
+    if (/[?&](hl|gl|lr)=/i.test(url)) {
+      return url;
+    }
+
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'hl=ja';
+  } catch (error) {
+    return url;
   }
 }
 
