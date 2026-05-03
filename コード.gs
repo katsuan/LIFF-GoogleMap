@@ -77,11 +77,13 @@ function resolveMapInfo_(url) {
   const geocodedInfo = normalizeMapInfoWithGeocoder_(rawTitle, rawAddress);
   const title = placesInfo.title || geocodedInfo.title || rawTitle || 'Google Maps';
   const address = placesInfo.address || geocodedInfo.address || rawAddress;
+  const photoUrl = placesInfo.photoUrl || '';
 
   return {
     ok: true,
     title,
     address,
+    photoUrl,
     url: finalUrl,
     originalUrl: url,
     message: ''
@@ -91,12 +93,14 @@ function resolveMapInfo_(url) {
 function createMapFlex_(info) {
   const title = info.title || 'Google Maps';
   const address = info.address || '';
+  const photoUrl = info.photoUrl || '';
   const mapUrl = info.originalUrl || info.url;
 
   const liffUrl = APP.LIFF_PAGE_URL
     + '?mapUrl=' + encodeURIComponent(mapUrl)
     + '&title=' + encodeURIComponent(title)
-    + '&address=' + encodeURIComponent(address);
+    + '&address=' + encodeURIComponent(address)
+    + '&photoUrl=' + encodeURIComponent(photoUrl);
 
   const bodyContents = [
     {
@@ -150,6 +154,13 @@ function createMapFlex_(info) {
     contents: {
       type: 'bubble',
       size: 'mega',
+      hero: photoUrl ? {
+        type: 'image',
+        url: photoUrl,
+        size: 'full',
+        aspectRatio: '20:13',
+        aspectMode: 'cover'
+      } : undefined,
       body: {
         type: 'box',
         layout: 'vertical',
@@ -310,22 +321,22 @@ function normalizeMapInfoWithGeocoder_(title, address) {
 
 function resolveWithPlacesApi_(title, address) {
   if (!GOOGLE_MAPS_API_KEY) {
-    return { title: '', address: '' };
+    return { title: '', address: '', photoUrl: '' };
   }
 
   const queries = buildGeocodeQueries_(title, address);
   if (queries.length === 0) {
-    return { title: '', address: '' };
+    return { title: '', address: '', photoUrl: '' };
   }
 
   for (let i = 0; i < queries.length; i += 1) {
     const result = searchPlaceText_(queries[i]);
-    if (result.title || result.address) {
+    if (result.title || result.address || result.photoUrl) {
       return result;
     }
   }
 
-  return { title: '', address: '' };
+  return { title: '', address: '', photoUrl: '' };
 }
 
 function searchPlaceText_(textQuery) {
@@ -335,7 +346,7 @@ function searchPlaceText_(textQuery) {
       contentType: 'application/json',
       headers: {
         'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress'
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.photos'
       },
       payload: JSON.stringify({
         textQuery: textQuery,
@@ -346,22 +357,56 @@ function searchPlaceText_(textQuery) {
     });
 
     if (res.getResponseCode() >= 300) {
-      return { title: '', address: '' };
+      return { title: '', address: '', photoUrl: '' };
     }
 
     const payload = JSON.parse(res.getContentText() || '{}');
     const places = payload.places || [];
     if (places.length === 0) {
-      return { title: '', address: '' };
+      return { title: '', address: '', photoUrl: '' };
     }
 
     const place = places[0];
     return {
       title: normalizeMapTitle_(place.displayName && place.displayName.text),
-      address: cleanMapAddress_(place.formattedAddress)
+      address: cleanMapAddress_(place.formattedAddress),
+      photoUrl: resolvePlacePhotoUrl_(place.photos)
     };
   } catch (error) {
-    return { title: '', address: '' };
+    return { title: '', address: '', photoUrl: '' };
+  }
+}
+
+function resolvePlacePhotoUrl_(photos) {
+  if (!GOOGLE_MAPS_API_KEY || !photos || photos.length === 0) {
+    return '';
+  }
+
+  const photoName = photos[0] && photos[0].name;
+  if (!photoName) {
+    return '';
+  }
+
+  try {
+    const encodedName = photoName.split('/').map(encodeURIComponent).join('/');
+    const endpoint = 'https://places.googleapis.com/v1/'
+      + encodedName
+      + '/media?maxWidthPx=1200&skipHttpRedirect=true&key='
+      + encodeURIComponent(GOOGLE_MAPS_API_KEY);
+
+    const res = UrlFetchApp.fetch(endpoint, {
+      method: 'get',
+      muteHttpExceptions: true
+    });
+
+    if (res.getResponseCode() >= 300) {
+      return '';
+    }
+
+    const payload = JSON.parse(res.getContentText() || '{}');
+    return payload.photoUri || '';
+  } catch (error) {
+    return '';
   }
 }
 

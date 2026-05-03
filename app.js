@@ -18,6 +18,7 @@ const params = new URLSearchParams(location.search);
 const initialMapUrl = params.get('mapUrl') || '';
 const initialTitle = params.get('title') || '';
 const initialAddress = params.get('address') || '';
+const initialPhotoUrl = params.get('photoUrl') || '';
 
 const elMapUrl = document.getElementById('mapUrl');
 const elTitle = document.getElementById('title');
@@ -32,6 +33,7 @@ const errorBox = document.getElementById('error');
 const doneBox = document.getElementById('done');
 
 let resolvedAddress = initialAddress;
+let resolvedPhotoUrl = initialPhotoUrl;
 let lastResolvedUrl = initialMapUrl;
 
 elMapUrl.value = initialMapUrl;
@@ -42,6 +44,7 @@ elMapUrl.addEventListener('input', () => {
     const currentUrl = elMapUrl.value.trim();
     if (!currentUrl || currentUrl !== lastResolvedUrl) {
         resolvedAddress = '';
+        resolvedPhotoUrl = '';
         setAddressPreview_('');
     }
 });
@@ -57,7 +60,7 @@ async function main() {
             return;
         }
 
-        if (initialMapUrl && (!initialTitle || !initialAddress)) {
+        if (initialMapUrl && (!initialTitle || !initialAddress || !initialPhotoUrl)) {
             await resolveMapInfo();
         }
     } catch (error) {
@@ -87,6 +90,7 @@ async function resolveMapInfo() {
 
         lastResolvedUrl = url;
         resolvedAddress = data.address || '';
+        resolvedPhotoUrl = data.photoUrl || '';
         elMapUrl.value = url;
         elTitle.value = data.title || 'Google Maps';
         setAddressPreview_(resolvedAddress);
@@ -111,6 +115,7 @@ async function shareMap() {
         const title = elTitle.value.trim() || 'Google Maps';
         const comment = elComment.value.trim();
         const address = resolvedAddress.trim();
+        const photoUrl = resolvedPhotoUrl.trim();
 
         validateMapUrl_(mapUrl);
         setSending_(true);
@@ -124,7 +129,7 @@ async function shareMap() {
                 {
                     type: 'flex',
                     altText: `マップ情報「📍 ${title}」の共有です！`,
-                    contents: createShareFlex_(mapUrl, title, address, comment, selectedBadges)
+                    contents: createShareFlex_(mapUrl, title, address, photoUrl, comment, selectedBadges)
                 }
             ]
         );
@@ -217,7 +222,7 @@ function addCustomBadge() {
     renderBadges_();
 }
 
-function createShareFlex_(mapUrl, title, address, comment, badges) {
+function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
     const bodyContents = [
         {
             type: 'text',
@@ -278,6 +283,13 @@ function createShareFlex_(mapUrl, title, address, comment, badges) {
     return {
         type: 'bubble',
         size: 'mega',
+        hero: photoUrl ? {
+            type: 'image',
+            url: photoUrl,
+            size: 'full',
+            aspectRatio: '20:13',
+            aspectMode: 'cover'
+        } : undefined,
         body: {
             type: 'box',
             layout: 'vertical',
