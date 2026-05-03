@@ -188,20 +188,34 @@ function isGoogleMapsUrl_(text) {
 }
 
 function expandUrl_(url) {
-  try {
-    const res = UrlFetchApp.fetch(url, {
-      method: 'get',
-      followRedirects: true,
-      muteHttpExceptions: true,
-    });
+  let currentUrl = url;
 
-    return typeof res.getFinalUrl === 'function'
-      ? res.getFinalUrl()
-      : url;
+  for (let i = 0; i < 5; i += 1) {
+    try {
+      const res = UrlFetchApp.fetch(currentUrl, {
+        method: 'get',
+        followRedirects: false,
+        muteHttpExceptions: true,
+      });
 
-  } catch (error) {
-    return url;
+      const code = res.getResponseCode();
+      if (code < 300 || code >= 400) {
+        return currentUrl;
+      }
+
+      const headers = res.getHeaders();
+      const location = headers.Location || headers.location;
+      if (!location) {
+        return currentUrl;
+      }
+
+      currentUrl = toAbsoluteUrl_(currentUrl, location);
+    } catch (error) {
+      return currentUrl;
+    }
   }
+
+  return currentUrl;
 }
 
 function fetchMapPage_(url) {
@@ -366,6 +380,29 @@ function extractAddressFromJsonLd_(value) {
   }
 
   return '';
+}
+
+function toAbsoluteUrl_(baseUrl, nextUrl) {
+  if (/^https?:\/\//i.test(nextUrl)) {
+    return nextUrl;
+  }
+
+  if (nextUrl.indexOf('//') === 0) {
+    const baseScheme = baseUrl.match(/^(https?):/i);
+    return (baseScheme ? baseScheme[1] : 'https') + ':' + nextUrl;
+  }
+
+  const baseMatch = baseUrl.match(/^(https?:\/\/[^/]+)(\/.*)?$/i);
+  if (!baseMatch) {
+    return nextUrl;
+  }
+
+  if (nextUrl.charAt(0) === '/') {
+    return baseMatch[1] + nextUrl;
+  }
+
+  const basePath = (baseMatch[2] || '/').replace(/\/[^/]*$/, '/');
+  return baseMatch[1] + basePath + nextUrl;
 }
 
 function decodeHtml_(text) {
