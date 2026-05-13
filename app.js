@@ -1,4 +1,4 @@
-const LIFF_ID = '2009965829-2KRcrwks';
+const LIFF_ID = '2009927876-NVTagD6V';
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyWJvdBist0kksEkE2DTvrFdZCrQEuy608y__R9NOLKExTHGTn4oKPYUR3WYdRjbVXJ7w/exec';
 
 const DEFAULT_BADGES = [
@@ -229,6 +229,7 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
             text: `📍 ${title}`,
             weight: 'bold',
             size: 'lg',
+            flex: 0,
             wrap: true
         }
     ];
@@ -239,6 +240,7 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
             text: address,
             size: 'sm',
             color: '#7c8ea1',
+            flex: 0,
             wrap: true
         });
     }
@@ -266,6 +268,7 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
                     text: 'コメント',
                     size: 'xs',
                     color: '#6f8497',
+                    flex: 0,
                     weight: 'bold'
                 },
                 {
@@ -273,6 +276,7 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
                     text: comment,
                     size: 'sm',
                     color: '#304255',
+                    flex: 0,
                     wrap: true,
                     margin: 'xs'
                 }
@@ -282,7 +286,7 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
 
     return {
         type: 'bubble',
-        size: 'mega',
+        size: 'giga',
         hero: photoUrl ? {
             type: 'image',
             url: photoUrl,
@@ -298,6 +302,7 @@ function createShareFlex_(mapUrl, title, address, photoUrl, comment, badges) {
             type: 'box',
             layout: 'vertical',
             backgroundColor: '#ffffff',
+            paddingAll: '20px',
             spacing: 'md',
             contents: bodyContents
         },

@@ -108,6 +108,7 @@ function createMapFlex_(info) {
       text: `📍 ${title}`,
       weight: 'bold',
       size: 'lg',
+      flex: 0,
       wrap: true
     }
   ];
@@ -118,6 +119,7 @@ function createMapFlex_(info) {
       text: address,
       size: 'sm',
       color: '#7C8EA1',
+      flex: 0,
       wrap: true
     });
   }
@@ -128,6 +130,7 @@ function createMapFlex_(info) {
       text: 'コメントを付けて、別のトークへ共有できます。',
       size: 'sm',
       color: '#666666',
+      flex: 0,
       wrap: true
     },
     {
@@ -153,7 +156,7 @@ function createMapFlex_(info) {
     altText: `📍 ${title}`,
     contents: {
       type: 'bubble',
-      size: 'mega',
+      size: 'giga',
       hero: photoUrl ? {
         type: 'image',
         url: photoUrl,
@@ -164,6 +167,7 @@ function createMapFlex_(info) {
       body: {
         type: 'box',
         layout: 'vertical',
+        paddingAll: '20px',
         spacing: 'md',
         contents: bodyContents
       },
